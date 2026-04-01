@@ -117,6 +117,8 @@ void setup()
     sslClient.print(String("GET ") + url + " HTTP/1.1\r\n" +
                     "Host: " + host + "\r\n" +
                     "User-Agent: BW16-STM32-OTA\r\n" +
+                    "Cache-Control: no-cache\r\n" +
+                    "Pragma: no-cache\r\n" +
                     "Connection: close\r\n\r\n");
 
     // Kiểm tra phản hồi từ Server
