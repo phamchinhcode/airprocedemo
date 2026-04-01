@@ -10,6 +10,9 @@ char pass[] = "1234567890";
 String API_KEY = "AIzaSyCq8JmNI8-tQHTojwvBSuktYPLi8FmhHSg";
 String DATABASE_URL = "androidapp-41ff4-default-rtdb.firebaseio.com";
 
+const char *host = "raw.githubusercontent.com";
+const char *url = "/PhamChinhCode/AirProceDemo/main/Code/Firmware/test.txt";
+
 WiFiSSLClient sslClient;
 WiFiSSLClient sslStream; // Dành riêng cho Stream
 GAuthBW16 authAnon(sslClient, API_KEY, "phamvanchinh203@gmail.com", "phamchinh202");
@@ -66,8 +69,7 @@ void setup()
         delay(500);
     Serial.println("\nConnected to WiFi");
     Serial.println("Unique ID: " + getUniqueID());
-    Serial.print("Dynamic memory size: ");
-    Serial.println(os_get_free_heap_size_arduino());
+    Serial.println(showMemory());
     Serial.println();
 
     pinMode(PA12, OUTPUT);
@@ -77,60 +79,98 @@ void setup()
     Serial.println("\n--- TEST AUTH ---");
 
     // Thử đăng nhập Email
-    if (authAnon.authenticate())
+    // if (authAnon.authenticate())
+    // {
+    //     Serial.println("Dang nhap Anonymous thanh cong!");
+    //     Serial.println("LocalID: " + authAnon.getLocalId());
+    //     Serial.println("Token: " + authAnon.getIdToken().substring(0, 15) + "...");
+    //     Serial.println("Refresh Token: " + authAnon.getRefreshToken().substring(0, 15) + "...");
+    // }
+    // else
+    // {
+    //     Serial.println("Dang nhap Anonymous that bai!");
+    // }
+    // if (auth.authenticate())
+    // {
+    //     fbStream.setStreamCallback(myDataHandler);
+    //     fbStream.startStream("/posts2"); // Stream toàn bộ DB hoặc node cụ thể
+    // }
+    // Serial.println("Auth OK! Token: " + authAnon.getIdToken().substring(0, 10) + "...");
+    // Khởi tạo kết nối bảo mật
+    // WiFiClient client;
+
+    // Lưu ý: Với BW16/AmebaD, nếu không muốn check chứng chỉ quá ngặt nghèo (để test nhanh)
+    // bạn có thể dùng lệnh: client.setInsecure();
+
+    Serial.println("Connecting to GitHub...");
+    if (!sslClient.connect(host, 443))
     {
-        Serial.println("Dang nhap Anonymous thanh cong!");
-        Serial.println("LocalID: " + authAnon.getLocalId());
-        Serial.println("Token: " + authAnon.getIdToken().substring(0, 15) + "...");
-        Serial.println("Refresh Token: " + authAnon.getRefreshToken().substring(0, 15) + "...");
+        Serial.println("Connection failed!");
+        return;
     }
     else
     {
-        Serial.println("Dang nhap Anonymous that bai!");
+        Serial.println("Connected to GitHub!");
     }
-    if (auth.authenticate())
+
+    // Gửi HTTP Request
+    sslClient.print(String("GET ") + url + " HTTP/1.1\r\n" +
+                    "Host: " + host + "\r\n" +
+                    "User-Agent: BW16-STM32-OTA\r\n" +
+                    "Connection: close\r\n\r\n");
+
+    // Kiểm tra phản hồi từ Server
+    while (sslClient.connected())
     {
-        // ĐĂNG KÝ HÀM XỬ LÝ
-        fbStream.setStreamCallback(myDataHandler);
-
-        // BẮT ĐẦU STREAM
-        fbStream.startStream("/posts2"); // Stream toàn bộ DB hoặc node cụ thể
+        if (sslClient.available())
+        {
+            char c = sslClient.read();
+            Serial.write(c);
+        }
+        // String line = client.readStringUntil('\n');
+        // if (line == "\r")
+        // {
+        //     Serial.println("Headers received, start downloading body...");
+        //     break;
+        // }
     }
-    // BƯỚC 1: Xác thực để lấy Token
-    // Serial.println("Dang xac thuc...");
-    // authAnon.setIdToken("eyJhbGciOiJSUzI1NiIsImtpZCI6IjM3MzAwNzY5YTA3ZTA1MTE2ZjdlNTEzOGZhOTA5MzY4NWVlYmMyNDAiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL3NlY3VyZXRva2VuLmdvb2dsZS5jb20vYW5kcm9pZGFwcC00MWZmNCIsImF1ZCI6ImFuZHJvaWRhcHAtNDFmZjQiLCJhdXRoX3RpbWUiOjE3NzQ4Nzc3OTMsInVzZXJfaWQiOiJ1U1JlZVVVNnB4TTN2ZFNaTFVtRWVpckhDdUkyIiwic3ViIjoidVNSZWVVVTZweE0zdmRTWkxVbUVlaXJIQ3VJMiIsImlhdCI6MTc3NDg3Nzc5MywiZXhwIjoxNzc0ODgxMzkzLCJlbWFpbCI6InBoYW12YW5jaGluaDIwM0BnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6ZmFsc2UsImZpcmViYXNlIjp7ImlkZW50aXRpZXMiOnsiZW1haWwiOlsicGhhbXZhbmNoaW5oMjAzQGdtYWlsLmNvbSJdfSwic2lnbl9pbl9wcm92aWRlciI6InBhc3N3b3JkIn19.Hw6RiyX7W3LucA28ob4WdREOW0Nin930iahVrzPSa2Z7iQmeoGU67fFFpEzDqaTxtzRlXPTnumPo6MPVRsYILshvAQsU63SK9BjYK7CrlG2ttt-D3D0UPfQwRBKS6oxIMdwuYHcJww6hCI4aIecBKrB1-pd99HoIPQjM4vFaWhI_gG7KkG0KnCo8IVjzGnTpNTj4FnxYwK82R1K6vitlETxJYgiHjFlu_M8cyFw4M-8X-NwxkGfci2qynvL0AMo-F90QFVYqMF0MEPeRVpoWh_rAYiAdVOq6ThKK3TfQGoWMlWXF8T1B7-XsvSlfYVwiB4N81oO09YmkmWich5jCkQ");
 
-    Serial.println("Auth OK! Token: " + authAnon.getIdToken().substring(0, 10) + "...");
+    // Đọc nội dung file và in ra Serial (Đây là nơi bạn sẽ gửi sang STM32)
+    while (sslClient.available())
+    {
+        char c = sslClient.read();
+        Serial.write(c);
+        // Sau này thay Serial.write(c) bằng Serial1.write(c) để gửi sang STM32
+    }
 
-    // BƯỚC 3: Đọc dữ liệu (GET)
+    sslClient.stop();
 }
 
 void loop()
 {
 
-    fbStream.loopStream(); // Luôn lắng nghe
+    // fbStream.loopStream(); // Luôn lắng nghe
 
-    if (millis() - mil > 6000)
-    {
-        mil = millis();
+    // if (millis() - mil > 6000)
+    // {
+    //     mil = millis();
 
-        Serial.print("Dynamic memory size: ");
-        Serial.println(os_get_free_heap_size_arduino());
+    //     Serial.println(showMemory());
 
-        // BƯỚC 2: Gửi dữ liệu (PUT)
-        String data = "{\"nhiet_do\": " + String(millis()) + ", \"trang_thai\": \"ON\"}";
-        if (firebase.put("/thiet_bi_1", data))
-        {
-            Serial.println("Du lieu gui di: " + data);
-        }
-        else
-        {
-            Serial.println("Ghi du lieu that bai!");
-        }
-        // Serial.println("6");
-        String result = firebase.get("/thiet_bi_1");
-        Serial.println("Du lieu doc ve: " + result);
-    }
+    //     // BƯỚC 2: Gửi dữ liệu (PUT)
+    //     String data = "{\"nhiet_do\": " + String(millis()) + ", \"trang_thai\": \"ON\"}";
+    //     if (firebase.put("/thiet_bi_1", data))
+    //     {
+    //         Serial.println("Du lieu gui di: " + data);
+    //     }
+    //     else
+    //     {
+    //         Serial.println("Ghi du lieu that bai!");
+    //     }
+    //     // Serial.println("6");
+    //     String result = firebase.get("/thiet_bi_1");
+    //     Serial.println("Du lieu doc ve: " + result);
+    // }
 }
 String getUniqueID()
 {
@@ -139,4 +179,8 @@ String getUniqueID()
     char uniqueID[13];
     sprintf(uniqueID, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     return String(uniqueID);
+}
+String showMemory()
+{
+    return "[SYSTEM MEMORY]: " + String(os_get_free_heap_size_arduino()) + " Byte\n";
 }
