@@ -70,15 +70,18 @@ void setup()
         // Đọc nội dung file và in ra Serial (Đây là nơi bạn sẽ gửi sang STM32)
         uint32_t index = 0;
         uint32_t numOfByte;
-        char headerBuffer[1024];
         int headerIdx = 0;
         bool headerEnded = false;
+        uint32_t currentAddr = 0x08000000; // Địa chỉ bắt đầu của Flash STM32
+        uint8_t pageBuffer[1024];          // Buffer tạm để gom đủ 1024 byte
+        int bufferIdx = 0;
+        bool writeSuccess = true;
         while (sslClient.available() > 0 && millis() - mil < 5000)
         {
             if (!headerEnded)
             {
                 String c = sslClient.readStringUntil('\n');
-                Serial.println(c); // Debug: In từng ký tự nhận được
+                // Serial.println(c); // Debug: In từng ký tự nhận được
                 if (c.indexOf("Content-Length:") != -1)
                 {
                     String contentLengthStr = c.substring(c.indexOf(":") + 1);
@@ -91,6 +94,16 @@ void setup()
                     headerEnded = true;
                     index = 0;
                     Serial.println("Header end <<<\n----------------------------------------");
+                    stm32.sync(); // Đồng bộ lại với STM32 trước khi bắt đầu gửi dữ liệu
+                    Serial.println("\n[1/3] Erasing Flash...");
+                    if (!stm32.eraseAll())
+                    {
+                        Serial.println("Erase failed! Aborting...");
+                        sslClient.stop();
+                        return;
+                    }
+                    Serial.println("Erase OK!");
+                    Serial.println("[2/3] Writing Firmware...");
                 }
             }
             else
@@ -98,16 +111,59 @@ void setup()
                 if (sslClient.available())
                 {
                     mil = millis();
-                    uint8_t c = sslClient.read();
-                    if (c < 0x10)
-                        Serial.print("0");
-                    Serial.print(c, HEX);
-                    index++;
-                    if (index % 64 == 0)
-                        Serial.println(); // Định dạng lại output cho dễ đọc, mỗi 64 byte xuống dòng
-                    // Sau này thay Serial.write(c) bằng Serial1.write(c) để gửi sang STM32
+                    pageBuffer[bufferIdx++] = sslClient.read();
+
+                    // Khi gom đủ 1024 byte, tiến hành ghi vào STM32
+                    if (bufferIdx == 1024)
+                    {
+                        if (!stm32.write1024(currentAddr, pageBuffer))
+                        {
+                            Serial.println("\nWrite failed at 0x" + String(currentAddr, HEX));
+                            writeSuccess = false;
+                            break;
+                        }
+                        currentAddr += 1024;
+                        index += 1024;
+                        bufferIdx = 0;     // Reset buffer cho khối tiếp theo
+                        Serial.print("."); // In dấu chấm để báo hiệu đang tiến triển
+                    }
+                }
+                if (millis() - mil > 10000)
+                {
+                    Serial.println("\nError: SSL Timeout!");
+                    writeSuccess = false;
+                    break;
                 }
             }
+        }
+        // 3. Xử lý khối dữ liệu cuối cùng (nếu còn dư dưới 1024 byte)
+        if (writeSuccess && bufferIdx > 0)
+        {
+            index += bufferIdx;
+            // Serial.println("\nWriting last chunk with padding...");
+            //  Bù byte 0xFF cho đủ 1024 byte
+            for (int i = bufferIdx; i < 1024; i++)
+            {
+                pageBuffer[i] = 0xFF;
+            }
+            if (!stm32.write1024(currentAddr, pageBuffer))
+            {
+                writeSuccess = false;
+            }
+            Serial.println("Done !");
+        }
+        if (writeSuccess)
+        {
+            Serial.println("\n[3/3] Firmware Update Successful!");
+            Serial.println("Total " + String(index) + " bytes written: " + String(currentAddr - 0x08000000 + (bufferIdx > 0 ? 1024 : 0)));
+
+            // Đưa BOOT0 về 0 và Reset để chạy chương trình mới
+            stm32.hardReset();
+            Serial.println("STM32 is now running new firmware.");
+        }
+        else
+        {
+            Serial.println("\nUpdate Failed!");
         }
         Serial.println("\n----------------------------------------");
         Serial.println("Finished reading from GitHub " + String(numOfByte) + " byte. Total bytes: " + String(index));
