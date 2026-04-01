@@ -8,8 +8,8 @@
 char ssid[] = "PC_NET_MOBILE";
 char pass[] = "1234567890";
 const char *host = "raw.githubusercontent.com";
-const char *url = "/PhamChinhCode/AirProceDemo/main/Code/Firmware/test.txt";
-
+const char *url = "/PhamChinhCode/AirProceDemo/refs/heads/main/Code/Firmware/test.txt";
+// https://raw.githubusercontent.com/PhamChinhCode/AirProceDemo/refs/heads/main/Code/Firmware/firmware.bin
 WiFiSSLClient sslClient;
 STM32UartFlash stm32(Serial1);
 
@@ -70,22 +70,49 @@ void setup()
         mil = millis();
         // Đọc nội dung file và in ra Serial (Đây là nơi bạn sẽ gửi sang STM32)
         uint32_t index = 0;
+        char headerBuffer[1024];
+        int headerIdx = 0;
+        bool headerEnded = false;
         while (sslClient.available() > 0 && millis() - mil < 5000)
         {
-            if (sslClient.available())
+            if (!headerEnded)
             {
-                mil = millis();
-                uint8_t c = sslClient.read();
-                if (c < 0x10)
-                    Serial.print("0");
-                Serial.print(c, HEX);
-                index++;
-                if (index % 64 == 0)
-                    Serial.println(); // Định dạng lại output cho dễ đọc, mỗi 64 byte xuống dòng
-                // Sau này thay Serial.write(c) bằng Serial1.write(c) để gửi sang STM32
+                char c = sslClient.read();
+                Serial.print(c); // Debug: In từng ký tự nhận được
+                if (headerIdx < sizeof(headerBuffer) - 1)
+                    headerBuffer[headerIdx++] = c;
+                else
+                    Serial.println("Header buffer overflow!"); // Debug: Kiểm tra tràn header buffer
+
+                // Kiểm tra end of headers
+                if (headerIdx >= 4 && headerBuffer[headerIdx - 4] == '\r' &&
+                    headerBuffer[headerIdx - 3] == '\n' &&
+                    headerBuffer[headerIdx - 2] == '\r' &&
+                    headerBuffer[headerIdx - 1] == '\n')
+                {
+                    headerEnded = true;
+                    index = 0;
+                    Serial.println("Header end <<<\n----------------------------------------");
+                }
+            }
+            else
+            {
+                if (sslClient.available())
+                {
+                    mil = millis();
+                    char c = sslClient.read();
+                    // if (c < 0x10)
+                    //     Serial.print("0");
+                    Serial.print(c);
+                    index++;
+                    // if (index % 64 == 0)
+                    //     Serial.println(); // Định dạng lại output cho dễ đọc, mỗi 64 byte xuống dòng
+                    // Sau này thay Serial.write(c) bằng Serial1.write(c) để gửi sang STM32
+                }
             }
         }
-        Serial.println("\nFinished reading from GitHub. Total bytes: " + String(index));
+        Serial.println("\n----------------------------------------");
+        Serial.println("Finished reading from GitHub. Total bytes: " + String(index));
 
         sslClient.stop();
     }
