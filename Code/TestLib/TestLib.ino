@@ -64,6 +64,7 @@ void myDataHandler(String path, String data)
 void setup()
 {
     Serial.begin(115200);
+    Serial1.begin(115200, SERIAL_8E1);
     WiFi.begin(ssid, pass);
     while (WiFi.status() != WL_CONNECTED)
         delay(500);
