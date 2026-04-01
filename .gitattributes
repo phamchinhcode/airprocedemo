@@ -1,0 +1,9 @@
+# Đánh dấu tất cả file .bin là dữ liệu nhị phân
+*.bin binary
+
+# Nếu bạn có các định dạng firmware khác, hãy thêm vào:
+*.hex binary
+*.elf binary
+
+# Đảm bảo các file text vẫn được xử lý bình thường
+*.txt text
